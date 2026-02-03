@@ -10,14 +10,26 @@ export default function StudentProfile() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Mock student data - in real app, this would come from API/auth context
-  const [studentData] = useState({
-    name: "John Smith",
-    studentId: "STU2024001",
-    email: "john.smith@university.edu",
-    stream: "Computer Science",
-    admissionYear: "2024",
+  // Load student data from local storage/auth context
+  const [studentData, setStudentData] = useState({
+    name: "",
+    studentId: "",
+    email: "",
+    section: "",
   });
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setStudentData({
+        name: user.name || "N/A",
+        studentId: user.student_id || user.studentId || "N/A", // Handle mixed case potential
+        email: user.email || "N/A",
+        section: user.section || "N/A"
+      });
+    }
+  }, []);
 
   const [faceStatus, setFaceStatus] = useState({
     registered: false,
@@ -87,17 +99,9 @@ export default function StudentProfile() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <BookOpen className="h-4 w-4" />
-                  <span className="font-medium">Stream</span>
+                  <span className="font-medium">Section</span>
                 </div>
-                <p className="text-base ml-6">{studentData.stream}</p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span className="font-medium">Admission Year</span>
-                </div>
-                <p className="text-base ml-6">{studentData.admissionYear}</p>
+                <p className="text-base ml-6">{studentData.section}</p>
               </div>
             </div>
           </CardContent>

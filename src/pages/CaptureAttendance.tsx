@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlayCircle, StopCircle, Plus, Trash2, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { StudentList } from "@/components/StudentList";
 import { getCurrentLocation, Location } from "@/lib/location";
+import { api } from "@/lib/api";
 
 interface Session {
   id: number;
@@ -27,8 +28,34 @@ export default function CaptureAttendance() {
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const { toast } = useToast();
 
-  // Mock teacher name - in real app, this would come from auth context
-  const teacherName = "Dr. Smith";
+  // Get teacher name from auth context/storage
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const teacherName = user.name || "Teacher";
+
+  const fetchSessions = async () => {
+    try {
+      const response = await api.get('/sessions');
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.map((s: any) => ({
+          id: s.id,
+          subject: s.subject,
+          teacherName: s.teacher_name,
+          teacherLocation: { latitude: s.teacher_location_lat, longitude: s.teacher_location_lng },
+          startTime: new Date(s.start_time).toLocaleTimeString(),
+          endTime: s.end_time ? new Date(s.end_time).toLocaleTimeString() : null,
+          isActive: s.is_active,
+          attendanceCount: 0 // Placeholder
+        })));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
 
   const createSession = async () => {
     if (!subject.trim()) {
@@ -43,57 +70,61 @@ export default function CaptureAttendance() {
     setIsCapturingLocation(true);
 
     try {
-      // Capture teacher's current location
       const location = await getCurrentLocation();
 
-      const newSession: Session = {
-        id: Date.now(),
-        subject: subject,
-        teacherName: teacherName,
-        teacherLocation: location,
-        startTime: new Date().toLocaleTimeString(),
-        endTime: null,
-        isActive: true,
-        attendanceCount: 0,
-      };
-
-      setSessions([newSession, ...sessions]);
-      setSubject("");
-      setShowCreateForm(false);
-      setIsCapturingLocation(false);
-
-      toast({
-        title: "Session Started",
-        description: `${subject} session is now active with your location captured. Students can mark attendance within 100m.`,
+      const response = await api.post('/sessions', {
+        subject,
+        location
       });
+
+      if (response.ok) {
+        await fetchSessions();
+        setSubject("");
+        setShowCreateForm(false);
+        toast({
+          title: "Session Started",
+          description: `${subject} session is now active.`,
+        });
+      }
     } catch (error) {
-      setIsCapturingLocation(false);
       toast({
         title: "Location Error",
-        description: error instanceof Error ? error.message : "Failed to get your location. Please enable location services.",
+        description: error instanceof Error ? error.message : "Failed to get location or create session.",
         variant: "destructive",
       });
+    } finally {
+      setIsCapturingLocation(false);
     }
   };
 
-  const endSession = (sessionId: number) => {
-    setSessions(sessions.map(s => 
-      s.id === sessionId 
-        ? { ...s, isActive: false, endTime: new Date().toLocaleTimeString() }
-        : s
-    ));
-    toast({
-      title: "Session Ended",
-      description: "Attendance session has been stopped",
-    });
+  const endSession = async (sessionId: number) => {
+    try {
+      const response = await api.post(`/sessions/${sessionId}/end`, {});
+      if (response.ok) {
+        await fetchSessions();
+        toast({
+          title: "Session Ended",
+          description: "Attendance session has been stopped",
+        });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to end session", variant: "destructive" });
+    }
   };
 
-  const deleteSession = (sessionId: number) => {
-    setSessions(sessions.filter(s => s.id !== sessionId));
-    toast({
-      title: "Session Deleted",
-      description: "Session has been removed",
-    });
+  const deleteSession = async (sessionId: number) => {
+    try {
+      const response = await api.delete(`/sessions/${sessionId}`);
+      if (response.ok) {
+        setSessions(sessions.filter(s => s.id !== sessionId));
+        toast({
+          title: "Session Deleted",
+          description: "Session has been removed",
+        });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to delete session", variant: "destructive" });
+    }
   };
 
   const activeSession = sessions.find(s => s.isActive);
@@ -146,7 +177,7 @@ export default function CaptureAttendance() {
               </div>
             </CardContent>
           </Card>
-          
+
           <StudentList />
         </>
       )}

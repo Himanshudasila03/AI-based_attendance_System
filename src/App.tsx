@@ -13,14 +13,19 @@ import Signup from "./pages/Signup";
 import RegisterFace from "./pages/RegisterFace";
 import StudentAttendance from "./pages/StudentAttendance";
 import StudentProfile from "./pages/StudentProfile";
+import TeacherProfile from "./pages/TeacherProfile";
 import NotFound from "./pages/NotFound";
 import { Button } from "@/components/ui/button";
 import { UserCircle } from "lucide-react";
+import { StudentList } from "@/components/StudentList";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [userRole, setUserRole] = useState<"student" | "teacher">("student");
+  const [userRole, setUserRole] = useState<"student" | "teacher">(() => {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user).role : "student";
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -29,8 +34,8 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Login setUserRole={setUserRole} />} />
+            <Route path="/signup" element={<Signup setUserRole={setUserRole} />} />
             <Route path="/register-face" element={<RegisterFace />} />
             <Route path="/student-attendance" element={<StudentAttendance />} />
             <Route
@@ -44,17 +49,19 @@ const App = () => {
                         <SidebarTrigger className="lg:hidden" />
                         <div className="flex-1"></div>
                         <div className="flex items-center gap-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setUserRole(userRole === "student" ? "teacher" : "student")}
-                          >
-                            Switch to {userRole === "student" ? "Teacher" : "Student"} View
-                          </Button>
                           <div className="flex items-center gap-2">
                             <UserCircle className="h-8 w-8 text-muted-foreground" />
                             <div className="text-sm">
-                              <div className="font-medium">{userRole === "student" ? "Student User" : "Teacher User"}</div>
+                              <div className="font-medium">
+                                {(() => {
+                                  try {
+                                    const user = localStorage.getItem('user');
+                                    return user ? JSON.parse(user).name : (userRole === "student" ? "Student" : "Teacher");
+                                  } catch (e) {
+                                    return userRole === "student" ? "Student" : "Teacher";
+                                  }
+                                })()}
+                              </div>
                               <div className="text-xs text-muted-foreground capitalize">{userRole}</div>
                             </div>
                           </div>
@@ -63,11 +70,20 @@ const App = () => {
                       <main className="flex-1 p-6 overflow-auto">
                         <Routes>
                           <Route path="/" element={<Dashboard userRole={userRole} />} />
+                          <Route path="/dashboard" element={<Dashboard userRole={userRole} />} />
                           <Route path="/capture" element={<CaptureAttendance />} />
-                          <Route path="/attendance" element={<Dashboard userRole={userRole} />} />
-                          <Route path="/profile" element={<StudentProfile />} />
+                          <Route path="/attendance" element={<StudentAttendance />} />
+                          <Route path="/profile" element={userRole === "student" ? <StudentProfile /> : <TeacherProfile />} />
                           <Route path="/records" element={<Dashboard userRole={userRole} />} />
-                          <Route path="/students" element={<Dashboard userRole={userRole} />} />
+                          <Route path="/students" element={
+                            <div className="space-y-6">
+                              <div>
+                                <h1 className="text-3xl font-bold text-foreground mb-2">Manage Students</h1>
+                                <p className="text-muted-foreground">View and manage enrolled students</p>
+                              </div>
+                              <StudentList />
+                            </div>
+                          } />
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </main>
@@ -78,8 +94,8 @@ const App = () => {
             />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+      </TooltipProvider >
+    </QueryClientProvider >
   );
 };
 

@@ -26,7 +26,8 @@ const teacherNavItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Take Attendance", url: "/capture", icon: Camera },
   { title: "View Records", url: "/records", icon: History },
-  { title: "Manage Students", url: "/students", icon: Users },
+  { title: "Managing Students", url: "/students", icon: Users },
+  { title: "My Profile", url: "/profile", icon: UserCircle },
 ];
 
 export function AttendanceSidebar({ userRole }: AttendanceSidebarProps) {

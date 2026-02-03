@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,42 +15,46 @@ interface Session {
   endTime: string;
   marked: boolean;
   enrolled: boolean; // Student is enrolled in this session
+  isActive: boolean;
 }
 
 export default function StudentAttendance() {
-  // Mock enrolled sessions - in real app, this would come from API based on student's enrollments
-  const [activeSessions, setActiveSessions] = useState<Session[]>([
-    {
-      id: 1,
-      subject: "Mathematics",
-      teacher: "Dr. Smith",
-      teacherLocation: { latitude: 28.6139, longitude: 77.2090 }, // Mock Delhi location
-      startTime: "09:00 AM",
-      endTime: "10:30 AM",
-      marked: false,
-      enrolled: true,
-    },
-    {
-      id: 2,
-      subject: "Physics",
-      teacher: "Prof. Johnson",
-      teacherLocation: { latitude: 28.6129, longitude: 77.2295 }, // Mock nearby location
-      startTime: "11:00 AM",
-      endTime: "12:30 PM",
-      marked: false,
-      enrolled: true,
-    },
-    {
-      id: 3,
-      subject: "Computer Science",
-      teacher: "Dr. Williams",
-      teacherLocation: { latitude: 28.6149, longitude: 77.2085 },
-      startTime: "02:00 PM",
-      endTime: "03:30 PM",
-      marked: false,
-      enrolled: true,
-    },
-  ]);
+  // Placeholder for real sessions from a future 'sessions' table/endpoint
+  const [activeSessions, setActiveSessions] = useState<Session[]>([]);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const response = await fetch('/api/sessions');
+        if (response.ok) {
+          const data = await response.json();
+          const now = new Date();
+
+          // Filter for active sessions (backend should handle this but client filter is fine for now)
+          // Also assuming all students are enrolled in all sessions for this MVP unless we add enrollment table
+          const active = data.map((s: any) => ({
+            id: s.id,
+            subject: s.subject,
+            teacher: s.teacher_name,
+            teacherLocation: { latitude: s.teacher_location_lat, longitude: s.teacher_location_lng },
+            startTime: new Date(s.start_time).toLocaleTimeString(),
+            endTime: s.end_time ? new Date(s.end_time).toLocaleTimeString() : "Ongoing",
+            marked: false, // We need to check if *this* student marked it. Separate API call or complex join.
+            // For now, let's assume not marked. The attendance check logic handles "already marked" usually?
+            // Or we can fetch attendance history to check.
+            enrolled: true,
+            isActive: s.is_active
+          })).filter((s: any) => s.isActive);
+
+          setActiveSessions(active);
+        }
+      } catch (e) {
+        console.error("Failed to fetch sessions");
+      }
+    };
+    fetchSessions();
+  }, []);
+
   const [isCapturing, setIsCapturing] = useState(false);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
   const [selectedSession, setSelectedSession] = useState<number | null>(null);
@@ -67,50 +71,73 @@ export default function StudentAttendance() {
     setIsCheckingLocation(true);
 
     try {
-      // Step 1: Check location permission and get current location
       const studentLocation = await getCurrentLocation();
-
-      // Step 2: Verify student is within 100m of teacher
       const withinRadius = isWithinRadius(
         studentLocation,
         session.teacherLocation,
-        100 // 100 meters radius
+        100
       );
 
       setIsCheckingLocation(false);
 
       if (!withinRadius) {
-        // Calculate actual distance for error message
         const distance = formatDistance(
           Math.sqrt(
             Math.pow(studentLocation.latitude - session.teacherLocation.latitude, 2) +
             Math.pow(studentLocation.longitude - session.teacherLocation.longitude, 2)
-          ) * 111320 // Rough conversion to meters
+          ) * 111320
         );
 
         toast({
           title: "Too Far Away",
-          description: `You must be within 100m of the teacher to mark attendance. You are approximately ${distance} away.`,
+          description: `You must be within 100m of the teacher to mark attendance.You are approximately ${distance} away.`,
           variant: "destructive",
         });
         setSelectedSession(null);
         return;
       }
 
-      // Step 3: Location verified, now proceed with face recognition
+      // Location verified
       setIsCapturing(true);
 
-      // Simulate face recognition
-      setTimeout(() => {
-        setActiveSessions(sessions =>
-          sessions.map(s => s.id === sessionId ? { ...s, marked: true } : s)
-        );
+      // Simulate face recognition delay (would be real logic in production)
+      setTimeout(async () => {
+        try {
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            const response = await fetch('/api/attendance', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: user.id,
+                status: 'present',
+                subject: session.subject
+              })
+            });
+
+            if (response.ok) {
+              setActiveSessions(sessions =>
+                sessions.map(s => s.id === sessionId ? { ...s, marked: true } : s)
+              );
+              toast({
+                title: "Attendance Marked!",
+                description: "Your attendance has been recorded successfully.",
+              });
+            } else {
+              throw new Error('Failed to mark attendance');
+            }
+          }
+        } catch (e) {
+          toast({
+            title: "Error",
+            description: "Failed to sync attendance with server",
+            variant: "destructive",
+          });
+        }
+
         setIsCapturing(false);
         setSelectedSession(null);
-        toast({
-          title: "Attendance Marked!",
-          description: "Your attendance has been recorded successfully with face and location verification",
-        });
       }, 2000);
 
     } catch (error) {

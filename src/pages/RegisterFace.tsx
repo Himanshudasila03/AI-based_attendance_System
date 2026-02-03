@@ -42,8 +42,8 @@ export default function RegisterFace() {
   };
 
   const handleComplete = () => {
-    // Navigate to profile if updating, otherwise go to attendance
-    navigate(isUpdate ? "/profile" : "/student-attendance");
+    // Navigate to profile if updating, otherwise go to dashboard
+    navigate(isUpdate ? "/profile" : "/dashboard");
   };
 
   const handleBack = () => {
@@ -158,7 +158,7 @@ export default function RegisterFace() {
                 </p>
               </div>
               <Button onClick={handleComplete} size="lg" className="w-full">
-                {isUpdate ? "Back to Profile" : "Continue to Attendance"}
+                {isUpdate ? "Back to Profile" : "Continue to Dashboard"}
               </Button>
             </div>
           )}

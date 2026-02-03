@@ -5,24 +5,66 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Users } from "lucide-react";
 
-export default function Login() {
+interface LoginProps {
+  setUserRole: (role: "student" | "teacher") => void;
+}
+
+export default function Login({ setUserRole }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const defaultRole = searchParams.get("role") === "teacher" ? "teacher" : "student";
+  const [activeTab, setActiveTab] = useState(defaultRole);
   const { toast } = useToast();
 
-  const handleLogin = (role: "student" | "teacher") => {
-    // Mock login - in real app, this would call backend
+  const handleLogin = async (role: "student" | "teacher") => {
     if (email && password) {
-      toast({
-        title: "Login Successful",
-        description: `Logged in as ${role}`,
-      });
-      navigate(role === "teacher" ? "/capture" : "/student-attendance");
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+          const user = await response.json();
+          // Verify role matches
+          if (user.role !== role) {
+            toast({
+              title: "Error",
+              description: `This account is not a ${role}`,
+              variant: "destructive",
+            });
+            return;
+          }
+
+          localStorage.setItem('user', JSON.stringify(user));
+          setUserRole(role); // Update global state
+
+          toast({
+            title: "Login Successful",
+            description: `Logged in as ${role}`,
+          });
+          navigate("/dashboard"); // Unified dashboard route
+        } else {
+          toast({
+            title: "Error",
+            description: "Invalid credentials",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Something went wrong",
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Error",
@@ -40,7 +82,7 @@ export default function Login() {
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="student" className="w-full">
+          <Tabs defaultValue={defaultRole} className="w-full" onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="student" className="gap-2">
                 <GraduationCap className="h-4 w-4" />
@@ -75,10 +117,10 @@ export default function Login() {
                   />
                 </div>
                 <Button type="submit" className="w-full">
-                  Sign In as Student
+                  Login
                 </Button>
               </form>
-              
+
               <div className="relative my-4">
                 <Separator />
                 <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
@@ -86,9 +128,9 @@ export default function Login() {
                 </span>
               </div>
 
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="w-full gap-2"
                 onClick={() => {
                   toast({
@@ -142,7 +184,7 @@ export default function Login() {
                   />
                 </div>
                 <Button type="submit" className="w-full">
-                  Sign In as Teacher
+                  Login
                 </Button>
               </form>
 
@@ -153,9 +195,9 @@ export default function Login() {
                 </span>
               </div>
 
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="w-full gap-2"
                 onClick={() => {
                   toast({
@@ -189,7 +231,7 @@ export default function Login() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Button variant="link" className="p-0" onClick={() => navigate("/signup")}>
+            <Button variant="link" className="p-0" onClick={() => navigate(`/signup?role=${activeTab}`)}>
               Sign up
             </Button>
           </div>

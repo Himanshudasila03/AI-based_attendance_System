@@ -5,29 +5,73 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Users } from "lucide-react";
 
-export default function Signup() {
+interface SignupProps {
+  setUserRole: (role: "student" | "teacher") => void;
+}
+
+export default function Signup({ setUserRole }: SignupProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [section, setSection] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const defaultRole = searchParams.get("role") === "teacher" ? "teacher" : "student";
+  const [activeTab, setActiveTab] = useState(defaultRole);
   const { toast } = useToast();
 
-  const handleSignup = (role: "student" | "teacher") => {
-    // Mock signup - in real app, this would call backend
+  const handleSignup = async (role: "student" | "teacher") => {
     if (email && password && name && (role === "teacher" || studentId)) {
-      toast({
-        title: "Account Created",
-        description: `Welcome! Proceed to ${role === "student" ? "register your face" : "dashboard"}`,
-      });
-      if (role === "student") {
-        navigate("/register-face");
-      } else {
-        navigate("/capture");
+      try {
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            role,
+            studentId: role === 'student' ? studentId : null,
+            section: role === 'student' ? section : null
+          })
+        });
+
+        if (response.ok) {
+          toast({
+            title: "Account Created",
+            description: `Welcome! Proceed to ${role === "student" ? "register your face" : "dashboard"}`,
+          });
+
+          if (role === "student") {
+            const data = await response.json();
+            localStorage.setItem('user', JSON.stringify(data));
+            setUserRole("student");
+            navigate("/register-face");
+          } else {
+            const data = await response.json();
+            localStorage.setItem('user', JSON.stringify(data));
+            setUserRole("teacher");
+            navigate("/capture"); // Teacher flow: Capture attendance
+          }
+        } else {
+          const error = await response.json();
+          toast({
+            title: "Error",
+            description: error.error || "Signup failed",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Something went wrong",
+          variant: "destructive",
+        });
       }
     } else {
       toast({
@@ -46,7 +90,7 @@ export default function Signup() {
           <CardDescription>Sign up to get started</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="student" className="w-full">
+          <Tabs defaultValue={defaultRole} className="w-full" onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="student" className="gap-2">
                 <GraduationCap className="h-4 w-4" />
@@ -100,6 +144,16 @@ export default function Signup() {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section">Section</Label>
+                  <Input
+                    id="section"
+                    type="text"
+                    placeholder="e.g., A"
+                    value={section}
+                    onChange={(e) => setSection(e.target.value)}
+                  />
+                </div>
                 <Button type="submit" className="w-full">
                   Create Student Account
                 </Button>
@@ -112,9 +166,9 @@ export default function Signup() {
                 </span>
               </div>
 
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="w-full gap-2"
                 onClick={() => {
                   toast({
@@ -189,9 +243,9 @@ export default function Signup() {
                 </span>
               </div>
 
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="w-full gap-2"
                 onClick={() => {
                   toast({
@@ -225,7 +279,7 @@ export default function Signup() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Button variant="link" className="p-0" onClick={() => navigate("/login")}>
+            <Button variant="link" className="p-0" onClick={() => navigate(`/login?role=${activeTab}`)}>
               Sign in
             </Button>
           </div>

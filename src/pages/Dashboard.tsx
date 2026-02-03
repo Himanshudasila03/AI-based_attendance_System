@@ -4,67 +4,61 @@ import { AttendanceTable } from "@/components/AttendanceTable";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 
 interface DashboardProps {
   userRole: "student" | "teacher";
 }
 
-const studentAttendanceData = [
-  {
-    id: "1",
-    studentName: "You",
-    date: "2024-01-15",
-    time: "09:00 AM",
-    status: "present" as const,
-    subject: "Mathematics",
-  },
-  {
-    id: "2",
-    studentName: "You",
-    date: "2024-01-14",
-    time: "09:05 AM",
-    status: "late" as const,
-    subject: "Physics",
-  },
-  {
-    id: "3",
-    studentName: "You",
-    date: "2024-01-13",
-    time: "09:00 AM",
-    status: "present" as const,
-    subject: "Chemistry",
-  },
-];
 
-const teacherAttendanceData = [
-  {
-    id: "1",
-    studentName: "John Doe",
-    date: "2024-01-15",
-    time: "09:00 AM",
-    status: "present" as const,
-  },
-  {
-    id: "2",
-    studentName: "Jane Smith",
-    date: "2024-01-15",
-    time: "09:05 AM",
-    status: "late" as const,
-  },
-  {
-    id: "3",
-    studentName: "Bob Johnson",
-    date: "2024-01-15",
-    time: "-",
-    status: "absent" as const,
-  },
-];
 
 export default function Dashboard({ userRole }: DashboardProps) {
   const isStudent = userRole === "student";
   const navigate = useNavigate();
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    present: 0,
+    late: 0,
+    absent: 0
+  });
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const response = await api.get('/attendance');
+        if (response.ok) {
+          const data = await response.json();
+
+          const formattedData = data.map((record: any) => ({
+            id: String(record.id),
+            studentName: record.student_name || 'Unknown',
+            date: new Date(record.timestamp).toLocaleDateString(),
+            time: new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: record.status as 'present' | 'absent' | 'late',
+            subject: record.subject
+          }));
+
+          setAttendanceData(formattedData);
+
+          const total = formattedData.length;
+          const present = formattedData.filter((r: any) => r.status === 'present').length;
+          const late = formattedData.filter((r: any) => r.status === 'late').length;
+          const absent = formattedData.filter((r: any) => r.status === 'absent').length;
+
+          setStats({ total, present, late, absent });
+        }
+      } catch (error) {
+        console.error("Failed to fetch attendance");
+      }
+    };
+
+    fetchAttendance();
+  }, [userRole]);
 
   const handleLogout = () => {
+    localStorage.removeItem('user');
     navigate("/login");
   };
 
@@ -88,31 +82,28 @@ export default function Dashboard({ userRole }: DashboardProps) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isStudent ? (
           <>
-            <StatCard title="Total Classes" value="24" icon={Calendar} />
+            <StatCard title="Total Classes" value={String(stats.total)} icon={Calendar} />
             <StatCard
               title="Present"
-              value="22"
+              value={String(stats.present)}
               icon={CheckCircle}
-              trend={{ value: 5, isPositive: true }}
             />
-            <StatCard title="Attendance Rate" value="91.7%" icon={TrendingUp} />
-            <StatCard title="Late Arrivals" value="2" icon={Clock} />
+            <StatCard title="Attendance Rate" value={`${stats.total ? Math.round(((stats.present + stats.late) / stats.total) * 100) : 0}%`} icon={TrendingUp} />
+            <StatCard title="Late Arrivals" value={String(stats.late)} icon={Clock} />
           </>
         ) : (
           <>
-            <StatCard title="Total Students" value="45" icon={Calendar} />
+            <StatCard title="Total Students" value="--" icon={Calendar} />
             <StatCard
               title="Present Today"
-              value="42"
+              value={String(stats.present)}
               icon={CheckCircle}
-              description="93.3% attendance"
             />
-            <StatCard title="Absent" value="3" icon={Clock} />
+            <StatCard title="Absent" value={String(stats.absent)} icon={Clock} />
             <StatCard
               title="Average Attendance"
-              value="89.5%"
+              value={`${stats.total ? Math.round(((stats.present + stats.late) / stats.total) * 100) : 0}%`}
               icon={TrendingUp}
-              trend={{ value: 3, isPositive: true }}
             />
           </>
         )}
@@ -126,7 +117,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AttendanceTable records={isStudent ? studentAttendanceData : teacherAttendanceData} />
+          <AttendanceTable records={attendanceData} />
         </CardContent>
       </Card>
     </div>
