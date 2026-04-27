@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { api } from "@/lib/api";
+
 interface SignupProps {
   setUserRole: (role: "student" | "teacher") => void;
 }
@@ -31,10 +33,7 @@ export default function Signup({ setUserRole }: SignupProps) {
   const handleSignup = async (role: "student" | "teacher") => {
     if (email && password && name && (role === "teacher" || studentId)) {
       try {
-        const response = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const response = await api.post('/register', {
             name,
             email,
             password,
@@ -43,8 +42,7 @@ export default function Signup({ setUserRole }: SignupProps) {
             section: role === 'student' ? section : null,
             semester: role === 'student' ? semester : null,
             program: role === 'student' ? program : null
-          })
-        });
+          });
 
         if (response.ok) {
           toast({

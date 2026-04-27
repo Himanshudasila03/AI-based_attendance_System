@@ -9,6 +9,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Users } from "lucide-react";
 
+import { api } from "@/lib/api";
+
 interface LoginProps {
   setUserRole: (role: "student" | "teacher") => void;
 }
@@ -25,11 +27,7 @@ export default function Login({ setUserRole }: LoginProps) {
   const handleLogin = async (role: "student" | "teacher") => {
     if (email && password) {
       try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
+        const response = await api.post('/login', { email, password });
 
         if (response.ok) {
           const user = await response.json();

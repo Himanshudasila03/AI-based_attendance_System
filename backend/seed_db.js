@@ -27,8 +27,8 @@ const seed = async () => {
         const student1Exists = await db.query("SELECT * FROM users WHERE email = 'student@example.com'");
         if (student1Exists.rows.length === 0) {
             await db.query(`
-                INSERT INTO users (name, email, password, role, student_id, admission_year, stream) 
-                VALUES ('Alice Student', 'student@example.com', $1, 'student', 'S001', '2023', 'CS')
+                INSERT INTO users (name, email, password, role, student_id, section, program) 
+                VALUES ('Alice Student', 'student@example.com', $1, 'student', 'S001', 'A', 'BTech')
             `, [student1Password]);
             console.log('✓ Student 1 created: student@example.com / student123');
         } else {
@@ -39,8 +39,8 @@ const seed = async () => {
         const student2Exists = await db.query("SELECT * FROM users WHERE email = 'jane@example.com'");
         if (student2Exists.rows.length === 0) {
             await db.query(`
-                INSERT INTO users (name, email, password, role, student_id, admission_year, stream) 
-                VALUES ('Jane Doe', 'jane@example.com', $1, 'student', 'S002', '2022', 'IT')
+                INSERT INTO users (name, email, password, role, student_id, section, program) 
+                VALUES ('Jane Doe', 'jane@example.com', $1, 'student', 'S002', 'B', 'BTech')
             `, [student2Password]);
             console.log('✓ Student 2 created: jane@example.com / jane123');
         } else {
