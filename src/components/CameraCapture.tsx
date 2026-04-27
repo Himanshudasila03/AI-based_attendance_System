@@ -44,8 +44,8 @@ export function CameraCapture() {
         ctx.drawImage(videoRef.current, 0, 0);
         setCapturedImage(canvas.toDataURL("image/png"));
         stopCamera();
-        
-        // Simulate face recognition
+
+
         setTimeout(() => {
           toast({
             title: "Face Recognized",

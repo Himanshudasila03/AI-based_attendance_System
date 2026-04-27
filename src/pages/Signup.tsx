@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Users } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SignupProps {
   setUserRole: (role: "student" | "teacher") => void;
@@ -19,6 +20,8 @@ export default function Signup({ setUserRole }: SignupProps) {
   const [password, setPassword] = useState("");
   const [studentId, setStudentId] = useState("");
   const [section, setSection] = useState("");
+  const [semester, setSemester] = useState("");
+  const [program, setProgram] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const defaultRole = searchParams.get("role") === "teacher" ? "teacher" : "student";
@@ -37,7 +40,9 @@ export default function Signup({ setUserRole }: SignupProps) {
             password,
             role,
             studentId: role === 'student' ? studentId : null,
-            section: role === 'student' ? section : null
+            section: role === 'student' ? section : null,
+            semester: role === 'student' ? semester : null,
+            program: role === 'student' ? program : null
           })
         });
 
@@ -56,7 +61,7 @@ export default function Signup({ setUserRole }: SignupProps) {
             const data = await response.json();
             localStorage.setItem('user', JSON.stringify(data));
             setUserRole("teacher");
-            navigate("/capture"); // Teacher flow: Capture attendance
+            navigate("/capture");
           }
         } else {
           const error = await response.json();
@@ -145,14 +150,45 @@ export default function Signup({ setUserRole }: SignupProps) {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="program">Program / Course</Label>
+                  <Select value={program} onValueChange={setProgram}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a program..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BTech">BTech</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="semester">Semester</Label>
+                  <Select value={semester} onValueChange={setSemester}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a semester..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                        <SelectItem key={sem} value={sem.toString()}>
+                          Semester {sem}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="section">Section</Label>
-                  <Input
-                    id="section"
-                    type="text"
-                    placeholder="e.g., A"
-                    value={section}
-                    onChange={(e) => setSection(e.target.value)}
-                  />
+                  <Select value={section} onValueChange={setSection}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a section..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2', 'G1', 'G2'].map((sec) => (
+                        <SelectItem key={sec} value={sec}>
+                          {sec}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full">
                   Create Student Account

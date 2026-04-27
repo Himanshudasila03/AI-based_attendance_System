@@ -1,47 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Clock, CheckCircle2, XCircle, AlertCircle, MapPin, User } from "lucide-react";
+import { Camera, Clock, CheckCircle2, AlertCircle, MapPin, User, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentLocation, isWithinRadius, formatDistance, Location } from "@/lib/location";
+import * as faceapi from "face-api.js";
+import { api } from "@/lib/api";
 
 interface Session {
   id: number;
   subject: string;
+  course_code: string;
   teacher: string;
   teacherLocation: Location;
   startTime: string;
   endTime: string;
   marked: boolean;
-  enrolled: boolean; // Student is enrolled in this session
+  enrolled: boolean; 
   isActive: boolean;
 }
 
 export default function StudentAttendance() {
-  // Placeholder for real sessions from a future 'sessions' table/endpoint
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<number | null>(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const { toast } = useToast();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const response = await fetch('/api/sessions');
+        const response = await api.get('/sessions');
         if (response.ok) {
           const data = await response.json();
-          const now = new Date();
-
-          // Filter for active sessions (backend should handle this but client filter is fine for now)
-          // Also assuming all students are enrolled in all sessions for this MVP unless we add enrollment table
+          
           const active = data.map((s: any) => ({
             id: s.id,
             subject: s.subject,
+            course_code: s.course_code,
             teacher: s.teacher_name,
             teacherLocation: { latitude: s.teacher_location_lat, longitude: s.teacher_location_lng },
             startTime: new Date(s.start_time).toLocaleTimeString(),
             endTime: s.end_time ? new Date(s.end_time).toLocaleTimeString() : "Ongoing",
-            marked: false, // We need to check if *this* student marked it. Separate API call or complex join.
-            // For now, let's assume not marked. The attendance check logic handles "already marked" usually?
-            // Or we can fetch attendance history to check.
+            marked: false, 
             enrolled: true,
             isActive: s.is_active
           })).filter((s: any) => s.isActive);
@@ -52,18 +56,120 @@ export default function StudentAttendance() {
         console.error("Failed to fetch sessions");
       }
     };
-    fetchSessions();
+
+    const checkAttendanceStatus = async () => {
+        try {
+            const res = await api.get('/attendance');
+            if (res.ok) {
+                const logs = await res.json();
+                setActiveSessions(sessions => sessions.map(s => {
+                    const hasMarked = logs.some((l: any) => l.session_id === s.id);
+                    return hasMarked ? { ...s, marked: true } : s;
+                }));
+            }
+        } catch (e) {
+            console.error("Failed to fetch attendance records");
+        }
+    };
+
+    fetchSessions().then(checkAttendanceStatus);
+    loadModels();
   }, []);
 
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<number | null>(null);
-  const { toast } = useToast();
+  const loadModels = async () => {
+    try {
+      await Promise.all([
+        faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+      ]);
+      setModelsLoaded(true);
+    } catch (error) {
+      console.error("Failed to load models:", error);
+    }
+  };
 
-  // Filter to show only enrolled sessions
-  const enrolledSessions = activeSessions.filter(session => session.enrolled);
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      const tracks = stream.getTracks();
+      tracks.forEach((track) => track.stop());
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("Camera access denied:", error);
+      throw new Error("Camera access denied");
+    }
+  };
+
+  const processAttendance = async (sessionId: number, session: Session) => {
+    if (!videoRef.current) return;
+
+    try {
+      const detection = await faceapi.detectSingleFace(videoRef.current).withFaceLandmarks().withFaceDescriptor();
+      if (!detection) {
+        throw new Error("No face detected in the camera.");
+      }
+
+      // Fetch stored encoding
+      const response = await api.get('/face-encoding');
+      if (!response.ok) {
+        throw new Error("Could not retrieve your registered face data.");
+      }
+      
+      const { encodingData } = await response.json();
+      const storedDescriptor = new Float32Array(encodingData);
+
+      // Compare
+      const distance = faceapi.euclideanDistance(detection.descriptor, storedDescriptor);
+      
+      if (distance > 0.6) {
+         throw new Error("Face does not match the registered profile.");
+      }
+
+      // Match successful, submit attendance
+      const submitRes = await api.post('/attendance', {
+        status: 'present',
+        sessionId: session.id
+      });
+
+      if (submitRes.ok) {
+        setActiveSessions(sessions =>
+          sessions.map(s => s.id === sessionId ? { ...s, marked: true } : s)
+        );
+        toast({
+          title: "Attendance Marked!",
+          description: "Your attendance has been recorded successfully.",
+        });
+      } else {
+        throw new Error('Failed to mark attendance on the server.');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Verification Failed",
+        description: error.message || "An error occurred during verification.",
+        variant: "destructive"
+      });
+    } finally {
+      stopCamera();
+      setIsCapturing(false);
+      setSelectedSession(null);
+    }
+  };
 
   const handleMarkAttendance = async (sessionId: number) => {
+    if (!modelsLoaded) {
+      toast({ title: "Please wait", description: "Loading recognition models...", variant: "default" });
+      return;
+    }
+
     const session = activeSessions.find(s => s.id === sessionId);
     if (!session) return;
 
@@ -90,73 +196,40 @@ export default function StudentAttendance() {
 
         toast({
           title: "Too Far Away",
-          description: `You must be within 100m of the teacher to mark attendance.You are approximately ${distance} away.`,
+          description: `You must be within 100m of the teacher to mark attendance. You are approximately ${distance} away.`,
           variant: "destructive",
         });
         setSelectedSession(null);
         return;
       }
 
-      // Location verified
       setIsCapturing(true);
-
-      // Simulate face recognition delay (would be real logic in production)
-      setTimeout(async () => {
-        try {
-          const userStr = localStorage.getItem('user');
-          if (userStr) {
-            const user = JSON.parse(userStr);
-            const response = await fetch('/api/attendance', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: user.id,
-                status: 'present',
-                subject: session.subject
-              })
-            });
-
-            if (response.ok) {
-              setActiveSessions(sessions =>
-                sessions.map(s => s.id === sessionId ? { ...s, marked: true } : s)
-              );
-              toast({
-                title: "Attendance Marked!",
-                description: "Your attendance has been recorded successfully.",
-              });
-            } else {
-              throw new Error('Failed to mark attendance');
-            }
-          }
-        } catch (e) {
-          toast({
-            title: "Error",
-            description: "Failed to sync attendance with server",
-            variant: "destructive",
-          });
-        }
-
-        setIsCapturing(false);
-        setSelectedSession(null);
+      await startCamera();
+      
+      // Delay to allow camera to adjust
+      setTimeout(() => {
+        processAttendance(sessionId, session);
       }, 2000);
 
     } catch (error) {
       setIsCheckingLocation(false);
       setSelectedSession(null);
       toast({
-        title: "Location Permission Required",
-        description: error instanceof Error ? error.message : "Please enable location access to mark attendance",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Please enable location access and camera to mark attendance",
         variant: "destructive",
       });
     }
   };
+
+  const enrolledSessions = activeSessions.filter(session => session.enrolled);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Mark Attendance</h1>
-          <p className="text-muted-foreground">Active sessions available for attendance</p>
+          <p className="text-muted-foreground">Active sessions for your enrolled courses</p>
         </div>
 
         {enrolledSessions.length === 0 ? (
@@ -165,7 +238,7 @@ export default function StudentAttendance() {
               <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No Active Sessions</h3>
               <p className="text-muted-foreground">
-                You don't have any enrolled sessions at the moment. Check back later or contact your administrator.
+                There are no active sessions for any of your enrolled courses right now.
               </p>
             </CardContent>
           </Card>
@@ -180,9 +253,15 @@ export default function StudentAttendance() {
                         {session.subject}
                         {session.marked && <CheckCircle2 className="h-5 w-5 text-success" />}
                       </CardTitle>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span className="font-medium">{session.teacher}</span>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4" />
+                          <span className="font-medium">{session.course_code}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          <span className="font-medium">{session.teacher}</span>
+                        </div>
                       </div>
                     </div>
                     <Badge variant={session.marked ? "default" : "secondary"}>
@@ -218,11 +297,17 @@ export default function StudentAttendance() {
                         </div>
                       ) : isCapturing && selectedSession === session.id ? (
                         <div className="space-y-4">
-                          <div className="aspect-video bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center animate-pulse">
-                            <Camera className="h-16 w-16 text-primary" />
+                          <div className="mx-auto w-80 h-64 bg-black rounded-lg overflow-hidden relative">
+                            <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              muted 
+                              playsInline
+                              className="w-full h-full object-cover transform -scale-x-100"
+                            />
                           </div>
                           <p className="text-center text-sm text-muted-foreground">
-                            Recognizing your face...
+                            Recognizing your face... Please hold still.
                           </p>
                         </div>
                       ) : (
@@ -230,7 +315,7 @@ export default function StudentAttendance() {
                           <Button
                             onClick={() => handleMarkAttendance(session.id)}
                             className="w-full gap-2"
-                            disabled={isCapturing || isCheckingLocation}
+                            disabled={isCapturing || isCheckingLocation || !modelsLoaded}
                           >
                             <Camera className="h-4 w-4" />
                             Mark Attendance

@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-require('dotenv').config({ path: './.env' }); // Assuming run from backend/ dir
+require('dotenv').config({ path: './.env' }); 
 
 const dbConfig = {
     user: process.env.DB_USER,
@@ -15,14 +15,14 @@ async function clearStudents() {
         await client.connect();
         console.log('Connected to database...');
 
-        // 1. Delete attendance records for students first (FK constraint)
+        
         console.log('Deleting student attendance records...');
         await client.query(`
             DELETE FROM attendance 
             WHERE user_id IN (SELECT id FROM users WHERE role = 'student')
         `);
 
-        // 2. Delete students
+        
         console.log('Deleting student accounts...');
         const res = await client.query(`
             DELETE FROM users 

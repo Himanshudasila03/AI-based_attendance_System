@@ -1,8 +1,8 @@
-// API utility with JWT authentication support
 
-const API_BASE_URL = '/api';
 
-// Get token from localStorage
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+
 const getToken = (): string | null => {
     const user = localStorage.getItem('user');
     if (user) {
@@ -16,7 +16,7 @@ const getToken = (): string | null => {
     return null;
 };
 
-// Make authenticated API request
+
 export const apiRequest = async (
     endpoint: string,
     options: RequestInit = {}
@@ -28,7 +28,7 @@ export const apiRequest = async (
         ...options.headers,
     };
 
-    // Add Authorization header if token exists
+    
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -38,7 +38,7 @@ export const apiRequest = async (
         headers,
     });
 
-    // If unauthorized, clear user data and redirect to login
+    
     if (response.status === 401 || response.status === 403) {
         localStorage.removeItem('user');
         window.location.href = '/login';
@@ -47,7 +47,7 @@ export const apiRequest = async (
     return response;
 };
 
-// Convenience methods
+
 export const api = {
     get: (endpoint: string) => apiRequest(endpoint, { method: 'GET' }),
 

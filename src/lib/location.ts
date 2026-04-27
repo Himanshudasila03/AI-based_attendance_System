@@ -1,4 +1,4 @@
-// Location utility functions for attendance proximity verification
+
 
 export interface Location {
   latitude: number;
@@ -10,9 +10,7 @@ export interface LocationPermissionResult {
   error?: string;
 }
 
-/**
- * Request location permission from the user
- */
+
 export const requestLocationPermission = async (): Promise<LocationPermissionResult> => {
   if (!navigator.geolocation) {
     return {
@@ -22,25 +20,23 @@ export const requestLocationPermission = async (): Promise<LocationPermissionRes
   }
 
   try {
-    // Check if permission API is available
+    
     if (navigator.permissions) {
       const permission = await navigator.permissions.query({ name: "geolocation" });
       return {
         granted: permission.state === "granted" || permission.state === "prompt",
       };
     }
-    // If permissions API not available, we'll try to get location directly
+    
     return { granted: true };
   } catch (error) {
     return {
-      granted: true, // Assume granted and let getCurrentLocation handle errors
+      granted: true, 
     };
   }
 };
 
-/**
- * Get current location coordinates
- */
+
 export const getCurrentLocation = (): Promise<Location> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -79,14 +75,9 @@ export const getCurrentLocation = (): Promise<Location> => {
   });
 };
 
-/**
- * Calculate distance between two coordinates using Haversine formula
- * @param loc1 First location
- * @param loc2 Second location
- * @returns Distance in meters
- */
+
 export const calculateDistance = (loc1: Location, loc2: Location): number => {
-  const R = 6371e3; // Earth's radius in meters
+  const R = 6371e3; 
   const φ1 = (loc1.latitude * Math.PI) / 180;
   const φ2 = (loc2.latitude * Math.PI) / 180;
   const Δφ = ((loc2.latitude - loc1.latitude) * Math.PI) / 180;
@@ -97,17 +88,11 @@ export const calculateDistance = (loc1: Location, loc2: Location): number => {
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  const distance = R * c; // Distance in meters
+  const distance = R * c; 
   return distance;
 };
 
-/**
- * Check if student is within the allowed radius of teacher's location
- * @param studentLocation Student's current location
- * @param teacherLocation Teacher's location when session started
- * @param radiusMeters Allowed radius in meters (default: 100m)
- * @returns True if within radius, false otherwise
- */
+
 export const isWithinRadius = (
   studentLocation: Location,
   teacherLocation: Location,
@@ -117,11 +102,7 @@ export const isWithinRadius = (
   return distance <= radiusMeters;
 };
 
-/**
- * Format distance for display
- * @param meters Distance in meters
- * @returns Formatted string like "45m" or "1.2km"
- */
+
 export const formatDistance = (meters: number): string => {
   if (meters < 1000) {
     return `${Math.round(meters)}m`;

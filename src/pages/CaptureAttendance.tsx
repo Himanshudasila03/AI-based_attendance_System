@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { PlayCircle, StopCircle, Plus, Trash2, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +14,7 @@ import { api } from "@/lib/api";
 interface Session {
   id: number;
   subject: string;
+  course_code: string;
   teacherName: string;
   teacherLocation: Location | null;
   startTime: string;
@@ -21,16 +23,24 @@ interface Session {
   attendanceCount: number;
 }
 
+interface Course {
+  id: number;
+  course_name: string;
+  course_code: string;
+}
+
 export default function CaptureAttendance() {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [subject, setSubject] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>("");
+  const [program, setProgram] = useState("");
+  const [semester, setSemester] = useState("");
+  const [sections, setSections] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const { toast } = useToast();
 
-  // Get teacher name from auth context/storage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const teacherName = user.name || "Teacher";
 
   const fetchSessions = async () => {
     try {
@@ -40,12 +50,13 @@ export default function CaptureAttendance() {
         setSessions(data.map((s: any) => ({
           id: s.id,
           subject: s.subject,
+          course_code: s.course_code,
           teacherName: s.teacher_name,
           teacherLocation: { latitude: s.teacher_location_lat, longitude: s.teacher_location_lng },
           startTime: new Date(s.start_time).toLocaleTimeString(),
           endTime: s.end_time ? new Date(s.end_time).toLocaleTimeString() : null,
           isActive: s.is_active,
-          attendanceCount: 0 // Placeholder
+          attendanceCount: 0 
         })));
       }
     } catch (e) {
@@ -57,11 +68,31 @@ export default function CaptureAttendance() {
     fetchSessions();
   }, []);
 
+  useEffect(() => {
+    const fetchProgramSubjects = async () => {
+      if (program && semester) {
+        try {
+          const res = await api.get(`/program-subjects?program=${encodeURIComponent(program)}&semester=${encodeURIComponent(semester)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setCourses(data);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setCourses([]); // Clear if no program/semester
+        setSelectedCourseId("");
+      }
+    };
+    fetchProgramSubjects();
+  }, [program, semester]);
+
   const createSession = async () => {
-    if (!subject.trim()) {
+    if (!selectedCourseId) {
       toast({
         title: "Error",
-        description: "Please enter a subject name",
+        description: "Please select a course",
         variant: "destructive",
       });
       return;
@@ -73,17 +104,22 @@ export default function CaptureAttendance() {
       const location = await getCurrentLocation();
 
       const response = await api.post('/sessions', {
-        subject,
-        location
+        courseId: parseInt(selectedCourseId),
+        location,
+        semester: semester || null,
+        sections: sections ? sections.split(',').map(s => s.trim()).filter(s => s) : null
       });
 
       if (response.ok) {
         await fetchSessions();
-        setSubject("");
+        setSelectedCourseId("");
+        setSemester("");
+        setSections("");
         setShowCreateForm(false);
+        const cName = courses.find(c => c.id === parseInt(selectedCourseId))?.course_name;
         toast({
           title: "Session Started",
-          description: `${subject} session is now active.`,
+          description: `${cName} session is now active.`,
         });
       }
     } catch (error) {
@@ -153,7 +189,7 @@ export default function CaptureAttendance() {
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm text-success font-medium mb-1">
-                    ✓ Active Session: {activeSession.subject}
+                    ✓ Active Session: {activeSession.subject} ({activeSession.course_code})
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Started at {activeSession.startTime} • {activeSession.attendanceCount} students marked
@@ -178,7 +214,7 @@ export default function CaptureAttendance() {
             </CardContent>
           </Card>
 
-          <StudentList />
+          <StudentList sessionId={activeSession.id} />
         </>
       )}
 
@@ -186,17 +222,64 @@ export default function CaptureAttendance() {
         <Card>
           <CardHeader>
             <CardTitle>Create New Session</CardTitle>
-            <CardDescription>Start a new attendance session for a subject</CardDescription>
+            <CardDescription>Select a course to start an attendance session</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="subject">Subject Name</Label>
-              <Input
-                id="subject"
-                placeholder="e.g., Mathematics, Physics"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
+              <Label htmlFor="program">Program</Label>
+              <Select value={program} onValueChange={setProgram}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a program..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BTech">BTech</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="semester">Semester</Label>
+              <Select value={semester} onValueChange={setSemester}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a semester..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                    <SelectItem key={sem} value={sem.toString()}>
+                      Semester {sem}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="course">Subject</Label>
+              <Select value={selectedCourseId} onValueChange={setSelectedCourseId} disabled={!courses.length}>
+                <SelectTrigger>
+                  <SelectValue placeholder={courses.length ? "Select a subject..." : "Enter Program and Semester first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map(course => (
+                    <SelectItem key={course.id} value={course.id.toString()}>
+                      {course.course_name} ({course.course_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sections">Section</Label>
+              <Select value={sections} onValueChange={setSections}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a section..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2', 'G1', 'G2'].map((sec) => (
+                    <SelectItem key={sec} value={sec}>
+                      {sec}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2">
               <Button
@@ -241,7 +324,7 @@ export default function CaptureAttendance() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold">{session.subject}</h4>
+                      <h4 className="font-semibold">{session.subject} ({session.course_code})</h4>
                       <Badge variant={session.isActive ? "default" : "secondary"}>
                         {session.isActive ? "Active" : "Ended"}
                       </Badge>

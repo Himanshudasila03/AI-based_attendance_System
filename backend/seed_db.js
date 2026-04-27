@@ -6,12 +6,12 @@ const seed = async () => {
     console.log('Seeding database with hashed passwords...');
 
     try {
-        // Hash passwords
+        
         const teacherPassword = await bcrypt.hash('teacher123', 10);
         const student1Password = await bcrypt.hash('student123', 10);
         const student2Password = await bcrypt.hash('jane123', 10);
 
-        // Create Teacher
+        
         const teacherExists = await db.query("SELECT * FROM users WHERE email = 'teacher@example.com'");
         if (teacherExists.rows.length === 0) {
             await db.query(`
@@ -23,7 +23,7 @@ const seed = async () => {
             console.log('✓ Teacher already exists.');
         }
 
-        // Create Student 1
+        
         const student1Exists = await db.query("SELECT * FROM users WHERE email = 'student@example.com'");
         if (student1Exists.rows.length === 0) {
             await db.query(`
@@ -35,7 +35,7 @@ const seed = async () => {
             console.log('✓ Student 1 already exists.');
         }
 
-        // Create Student 2
+        
         const student2Exists = await db.query("SELECT * FROM users WHERE email = 'jane@example.com'");
         if (student2Exists.rows.length === 0) {
             await db.query(`

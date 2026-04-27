@@ -33,7 +33,6 @@ export default function Login({ setUserRole }: LoginProps) {
 
         if (response.ok) {
           const user = await response.json();
-          // Verify role matches
           if (user.role !== role) {
             toast({
               title: "Error",
@@ -44,13 +43,13 @@ export default function Login({ setUserRole }: LoginProps) {
           }
 
           localStorage.setItem('user', JSON.stringify(user));
-          setUserRole(role); // Update global state
+          setUserRole(role);
 
           toast({
             title: "Login Successful",
             description: `Logged in as ${role}`,
           });
-          navigate("/dashboard"); // Unified dashboard route
+          navigate("/dashboard");
         } else {
           toast({
             title: "Error",

@@ -37,7 +37,10 @@ export default function Dashboard({ userRole }: DashboardProps) {
             date: new Date(record.timestamp).toLocaleDateString(),
             time: new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             status: record.status as 'present' | 'absent' | 'late',
-            subject: record.subject
+            subject: record.session_subject,
+            program: record.program,
+            semester: record.semester,
+            section: record.section
           }));
 
           setAttendanceData(formattedData);
@@ -117,7 +120,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AttendanceTable records={attendanceData} />
+          <AttendanceTable records={attendanceData} isTeacher={!isStudent} />
         </CardContent>
       </Card>
     </div>

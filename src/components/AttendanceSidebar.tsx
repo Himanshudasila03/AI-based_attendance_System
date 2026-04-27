@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 
 interface AttendanceSidebarProps {
-  userRole: "student" | "teacher";
+  userRole: "student" | "teacher" | "admin";
 }
 
 const studentNavItems = [
@@ -25,13 +25,18 @@ const studentNavItems = [
 const teacherNavItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Take Attendance", url: "/capture", icon: Camera },
-  { title: "View Records", url: "/records", icon: History },
   { title: "Managing Students", url: "/students", icon: Users },
   { title: "My Profile", url: "/profile", icon: UserCircle },
 ];
 
+const adminNavItems = [
+  { title: "Admin Dashboard", url: "/admin", icon: LayoutDashboard },
+  { title: "All Records", url: "/records", icon: History },
+  { title: "Manage Users", url: "/students", icon: Users },
+];
+
 export function AttendanceSidebar({ userRole }: AttendanceSidebarProps) {
-  const navItems = userRole === "student" ? studentNavItems : teacherNavItems;
+  const navItems = userRole === "admin" ? adminNavItems : userRole === "student" ? studentNavItems : teacherNavItems;
 
   return (
     <Sidebar className="border-r border-sidebar-border">

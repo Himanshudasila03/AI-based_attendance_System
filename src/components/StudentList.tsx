@@ -16,49 +16,83 @@ interface Student {
   name: string;
   email: string;
   section: string;
+  program: string;
+  semester: string;
   marked: boolean;
 }
 
-export function StudentList() {
+interface StudentListProps {
+  sessionId?: number;
+}
+
+export function StudentList({ sessionId }: StudentListProps) {
   const [students, setStudents] = useState<Student[]>([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sectionFilter, setSectionFilter] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: "", email: "", section: "" });
+  const [newStudent, setNewStudent] = useState({ name: "", email: "", section: "", program: "", semester: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const [programFilter, setProgramFilter] = useState("all");
+  const [semesterFilter, setSemesterFilter] = useState("all");
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesSection = sectionFilter === "all" || student.section === sectionFilter;
-    return matchesSearch && matchesSection;
+    const matchesProgram = programFilter === "all" || student.program === programFilter;
+    const matchesSemester = semesterFilter === "all" || student.semester === semesterFilter;
+    
+    return matchesSearch && matchesSection && matchesProgram && matchesSemester;
   });
 
-  const uniqueSections = Array.from(new Set(students.map(s => s.section))).sort();
+  const uniqueSections = Array.from(new Set(students.map(s => s.section).filter(s => s !== 'N/A'))).sort();
+  const uniquePrograms = Array.from(new Set(students.map(s => s.program).filter(s => s !== 'N/A'))).sort();
+  const uniqueSemesters = Array.from(new Set(students.map(s => s.semester).filter(s => s !== 'N/A'))).sort();
 
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchStudentsAndAttendance = async () => {
       try {
-        const response = await api.get('/students');
-        if (response.ok) {
-          const data = await response.json();
+        const studentRes = await api.get(sessionId ? `/students?sessionId=${sessionId}` : '/students');
+        let markedStudentIds = new Set<number>();
+
+        if (sessionId) {
+          try {
+            const attRes = await api.get(`/attendance?sessionId=${sessionId}`);
+            if (attRes.ok) {
+              const attData = await attRes.json();
+              attData.forEach((record: any) => {
+                if (record.status === 'present') {
+                  markedStudentIds.add(record.user_id);
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Failed to fetch attendance");
+          }
+        }
+
+        if (studentRes.ok) {
+          const data = await studentRes.json();
           setStudents(data.map((s: any) => ({
             id: s.id,
             name: s.name,
             email: s.email,
             section: s.section || 'N/A',
-            marked: false // Attendance status needs to be fetched separately ideally, or joined
+            program: s.program || 'N/A',
+            semester: s.semester || 'N/A',
+            marked: markedStudentIds.has(s.id)
           })));
         }
       } catch (e) {
         console.error("Failed to fetch students");
       }
     };
-    fetchStudents();
-  }, []);
+    fetchStudentsAndAttendance();
+  }, [sessionId]);
 
   const handleAddStudent = async () => {
     if (!newStudent.name || !newStudent.email || !newStudent.section) {
@@ -71,31 +105,35 @@ export function StudentList() {
     }
 
     try {
-      // We'll treat adding a student here as registering a new user with student role
+      
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newStudent.name,
           email: newStudent.email,
-          password: 'password123', // Default password for manually added students
+          password: 'password123', 
           role: 'student',
-          section: newStudent.section
+          section: newStudent.section,
+          program: newStudent.program,
+          semester: newStudent.semester
         })
       });
 
       if (response.ok) {
         const createdUser = await response.json();
-        // Refetch or append
+        
         const student: Student = {
           id: createdUser.id,
           name: createdUser.name,
           email: createdUser.email,
           section: newStudent.section,
+          program: newStudent.program,
+          semester: newStudent.semester,
           marked: false,
         };
         setStudents([...students, student]);
-        setNewStudent({ name: "", email: "", section: "" });
+        setNewStudent({ name: "", email: "", section: "", program: "", semester: "" });
         setShowAddDialog(false);
         toast({
           title: "Student Added",
@@ -113,7 +151,7 @@ export function StudentList() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Mock Excel upload - in real app would parse Excel file
+      
       toast({
         title: "File Uploaded",
         description: `${file.name} - Excel parsing will be implemented with backend`,
@@ -186,13 +224,45 @@ export function StudentList() {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="program">Program</Label>
+                    <Select value={newStudent.program} onValueChange={(val) => setNewStudent({ ...newStudent, program: val })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a program..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BTech">BTech</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="semester">Semester</Label>
+                    <Select value={newStudent.semester} onValueChange={(val) => setNewStudent({ ...newStudent, semester: val })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a semester..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                          <SelectItem key={sem} value={sem.toString()}>
+                            Semester {sem}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label htmlFor="section">Section</Label>
-                    <Input
-                      id="section"
-                      value={newStudent.section}
-                      onChange={(e) => setNewStudent({ ...newStudent, section: e.target.value })}
-                      placeholder="e.g., A"
-                    />
+                    <Select value={newStudent.section} onValueChange={(val) => setNewStudent({ ...newStudent, section: val })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a section..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2', 'G1', 'G2'].map((sec) => (
+                          <SelectItem key={sec} value={sec}>
+                            {sec}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Button onClick={handleAddStudent} className="w-full">
                     Add Student
@@ -214,14 +284,36 @@ export function StudentList() {
               className="pl-10"
             />
           </div>
+          <Select value={programFilter} onValueChange={setProgramFilter}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Program" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Programs</SelectItem>
+              <SelectItem value="BTech">BTech</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={semesterFilter} onValueChange={setSemesterFilter}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Semester" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Semesters</SelectItem>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                <SelectItem key={sem} value={sem.toString()}>Sem {sem}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={sectionFilter} onValueChange={setSectionFilter}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-32">
               <SelectValue placeholder="Section" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Sections</SelectItem>
-              {uniqueSections.map(section => (
-                <SelectItem key={section} value={section}>{section}</SelectItem>
+              {['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2', 'G1', 'G2'].map((sec) => (
+                <SelectItem key={sec} value={sec}>{sec}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -233,6 +325,8 @@ export function StudentList() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Program</TableHead>
+                <TableHead>Semester</TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -250,6 +344,8 @@ export function StudentList() {
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.name}</TableCell>
                     <TableCell>{student.email}</TableCell>
+                    <TableCell>{student.program}</TableCell>
+                    <TableCell>{student.semester}</TableCell>
                     <TableCell>{student.section}</TableCell>
                     <TableCell>
                       {student.marked ? (

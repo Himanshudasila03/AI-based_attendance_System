@@ -29,7 +29,7 @@ export default function TeacherProfile() {
                     <p className="text-muted-foreground">View and manage your account details</p>
                 </div>
 
-                {/* Profile Information Card */}
+                {}
                 <Card>
                     <CardHeader>
                         <CardTitle>Profile Information</CardTitle>

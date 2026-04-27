@@ -2,15 +2,16 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Camera, CheckCircle2, XCircle, User, Mail, Calendar, BookOpen, RefreshCw } from "lucide-react";
+import { Camera, CheckCircle2, XCircle, User, Mail, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/lib/api";
 
 export default function StudentProfile() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Load student data from local storage/auth context
+  
   const [studentData, setStudentData] = useState({
     name: "",
     studentId: "",
@@ -19,16 +20,42 @@ export default function StudentProfile() {
   });
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setStudentData({
-        name: user.name || "N/A",
-        studentId: user.student_id || user.studentId || "N/A", // Handle mixed case potential
-        email: user.email || "N/A",
-        section: user.section || "N/A"
-      });
-    }
+    const fetchUserData = async () => {
+      try {
+        const res = await api.get('/me');
+        if (res.ok) {
+          const user = await res.json();
+          setStudentData({
+            name: user.name || "N/A",
+            studentId: user.student_id || user.studentId || "N/A", 
+            email: user.email || "N/A",
+            section: user.section || "N/A"
+          });
+          
+          // Also update local storage so other components have fresh data
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const currentLocal = JSON.parse(userStr);
+            localStorage.setItem('user', JSON.stringify({ ...currentLocal, ...user }));
+          }
+        } else {
+          // Fallback to local storage
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            setStudentData({
+              name: user.name || "N/A",
+              studentId: user.student_id || user.studentId || "N/A", 
+              email: user.email || "N/A",
+              section: user.section || "N/A"
+            });
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchUserData();
   }, []);
 
   const [faceStatus, setFaceStatus] = useState({
@@ -36,7 +63,7 @@ export default function StudentProfile() {
     date: null as string | null,
   });
 
-  // Load face registration status from localStorage
+  
   useEffect(() => {
     const faceRegistered = localStorage.getItem("faceRegistered") === "true";
     const faceRegisteredDate = localStorage.getItem("faceRegisteredDate");
@@ -47,13 +74,7 @@ export default function StudentProfile() {
   }, []);
 
   const handleRegisterFace = () => {
-    // Navigate to face registration page
     navigate("/register-face");
-  };
-
-  const handleUpdateFace = () => {
-    // Navigate to face registration page to update with mode parameter
-    navigate("/register-face?mode=update");
   };
 
   return (
@@ -64,7 +85,7 @@ export default function StudentProfile() {
           <p className="text-muted-foreground">Manage your account and face recognition settings</p>
         </div>
 
-        {/* Profile Information Card */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle>Profile Information</CardTitle>
@@ -107,7 +128,7 @@ export default function StudentProfile() {
           </CardContent>
         </Card>
 
-        {/* Face Recognition Card */}
+        {}
         <Card className={faceStatus.registered ? "border-success/50 bg-success/5" : "border-warning/50 bg-warning/5"}>
           <CardHeader>
             <div className="flex items-start justify-between">
@@ -155,16 +176,8 @@ export default function StudentProfile() {
 
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Need to update your face data? You can re-register if your appearance has changed significantly.
+                    If you need to update your face data due to a significant change in appearance, please contact your administrator.
                   </p>
-                  <Button
-                    onClick={handleUpdateFace}
-                    variant="outline"
-                    className="w-full gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Update Face Registration
-                  </Button>
                 </div>
               </>
             ) : (
@@ -207,7 +220,7 @@ export default function StudentProfile() {
           </CardContent>
         </Card>
 
-        {/* Additional Info Card */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle>Privacy & Security</CardTitle>
