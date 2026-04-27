@@ -181,7 +181,7 @@ export default function StudentAttendance() {
       const withinRadius = isWithinRadius(
         studentLocation,
         session.teacherLocation,
-        100
+        500
       );
 
       setIsCheckingLocation(false);
@@ -196,7 +196,7 @@ export default function StudentAttendance() {
 
         toast({
           title: "Too Far Away",
-          description: `You must be within 100m of the teacher to mark attendance. You are approximately ${distance} away.`,
+          description: `You must be within 500m of the teacher to mark attendance. You are approximately ${distance} away.`,
           variant: "destructive",
         });
         setSelectedSession(null);
@@ -321,7 +321,7 @@ export default function StudentAttendance() {
                             Mark Attendance
                           </Button>
                           <p className="text-xs text-center text-muted-foreground">
-                            You must be within 100m of the teacher's location to mark attendance
+                            You must be within 500m of the teacher's location to mark attendance
                           </p>
                         </div>
                       )}

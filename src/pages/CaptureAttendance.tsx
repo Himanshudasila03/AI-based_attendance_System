@@ -299,7 +299,7 @@ export default function CaptureAttendance() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Your location will be captured to verify student attendance within 100m radius.
+              Your location will be captured to verify student attendance within 500m radius.
             </p>
           </CardContent>
         </Card>
